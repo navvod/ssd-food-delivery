@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import paymentService from '../../services/paymentService';
 import notificationService from '../../services/notificationService';
 import useAuth from '../../hooks/useAuth';
+import DOMPurify from 'dompurify';
 
 const CreateOrder = () => {
   const navigate = useNavigate();
@@ -32,46 +33,53 @@ const CreateOrder = () => {
 
         // Fetch cards
         const cardData = await paymentService.getCards();
-        setCards(cardData);
-        if (cardData.length > 0) {
-          setSelectedCardId(cardData[0]._id);
+        const sanitizedCards = cardData.map(card => ({
+          ...card,
+          brand: DOMPurify.sanitize(card.brand || ''),
+          last4: DOMPurify.sanitize(card.last4 || '')
+        }));
+        setCards(sanitizedCards);
+        if (sanitizedCards.length > 0) {
+          setSelectedCardId(sanitizedCards[0]._id);
         }
 
         // Set user email from useAuth
         if (user && user.email) {
-          setUserEmail(user.email);
+          setUserEmail(DOMPurify.sanitize(user.email));
         } else {
           throw new Error('User email not available. Please ensure you are logged in.');
         }
       } catch (err) {
-        setError(err.response?.data?.message || err.message);
+        const errorMessage = DOMPurify.sanitize(err.response?.data?.message || err.message);
+        setError(errorMessage);
+        toast.error(errorMessage);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [user]); // Add user as a dependency to re-run if user changes
+  }, [user]);
 
   const handlePlaceOrder = async () => {
     if (!deliveryAddress || !fromAddress || !phoneNumber) {
-      toast.error('Please fill in all fields: Delivery address, from address, and phone number are required');
+      toast.error(DOMPurify.sanitize('Please fill in all fields: Delivery address, from address, and phone number are required'));
       return;
     }
 
     const phoneRegex = /^\d{10}$/;
     if (!phoneRegex.test(phoneNumber)) {
-      toast.error('Phone number must be exactly 10 digits');
+      toast.error(DOMPurify.sanitize('Phone number must be exactly 10 digits'));
       return;
     }
 
     if (!selectedCardId) {
-      toast.error('Please select a payment card');
+      toast.error(DOMPurify.sanitize('Please select a payment card'));
       return;
     }
 
     if (!userEmail) {
-      toast.error('User email not available. Please ensure you are logged in and try again.');
+      toast.error(DOMPurify.sanitize('User email not available. Please ensure you are logged in and try again.'));
       return;
     }
 
@@ -79,37 +87,40 @@ const CreateOrder = () => {
       const totalAmount = cart.totalAmount || cart.items.reduce((sum, item) => sum + item.amount, 0);
       console.log('Total amount calculated:', totalAmount);
 
-      const orderData = {
-        deliveryAddress,
-        fromAddress,
-        phoneNumber,
+      const sanitizedOrderData = {
+        deliveryAddress: DOMPurify.sanitize(deliveryAddress),
+        fromAddress: DOMPurify.sanitize(fromAddress),
+        phoneNumber: DOMPurify.sanitize(phoneNumber),
       };
-      console.log('Order data being sent:', orderData);
+      console.log('Order data being sent:', sanitizedOrderData);
 
-      const response = await createOrder(orderData);
+      const response = await createOrder(sanitizedOrderData);
       console.log('Order creation response:', response);
-      setOrderId(response.order._id);
+      setOrderId(DOMPurify.sanitize(response.order._id));
 
-      const emailPayload = {
+      const sanitizedEmailPayload = {
         to: userEmail,
         subject: 'Order Confirmation - Your Order Has Been Successfully Placed',
-        message: `Dear Customer,\n\nYour order (ID: ${response.order._id}) has been successfully placed!\n\nOrder Details:\n- Total Amount: $${totalAmount}\n- Delivery Address: ${deliveryAddress}\n- From Address: ${fromAddress}\n\nThank you for choosing our service. You'll receive further updates on your order status.\n\nBest regards,\nFood Delivery Team`,
+        message: DOMPurify.sanitize(
+          `Dear Customer,\n\nYour order (ID: ${DOMPurify.sanitize(response.order._id)}) has been successfully placed!\n\nOrder Details:\n- Total Amount: $${totalAmount}\n- Delivery Address: ${DOMPurify.sanitize(deliveryAddress)}\n- From Address: ${DOMPurify.sanitize(fromAddress)}\n\nThank you for choosing our service. You'll receive further updates on your order status.\n\nBest regards,\nFood Delivery Team`
+        ),
       };
-      console.log('Sending email notification with payload:', emailPayload);
+      console.log('Sending email notification with payload:', sanitizedEmailPayload);
 
-      const emailResponse = await notificationService.sendEmailNotification(emailPayload);
+      const emailResponse = await notificationService.sendEmailNotification(sanitizedEmailPayload);
       console.log('Email notification response:', emailResponse);
 
-      toast.success('Order placed and confirmation email sent! Please proceed with payment.');
+      toast.success(DOMPurify.sanitize('Order placed and confirmation email sent! Please proceed with payment.'));
     } catch (error) {
       console.error('Place order error:', error);
-      toast.error(error.response?.data?.message || error.message || 'Failed to place order or send notification');
+      const errorMessage = DOMPurify.sanitize(error.response?.data?.message || error.message || 'Failed to place order or send notification');
+      toast.error(errorMessage);
     }
   };
 
   const handlePayment = async () => {
     if (!orderId) {
-      toast.error('No order placed yet');
+      toast.error(DOMPurify.sanitize('No order placed yet'));
       return;
     }
 
@@ -121,19 +132,21 @@ const CreateOrder = () => {
       setSuccess(null);
 
       const paymentData = {
-        orderId,
+        orderId: DOMPurify.sanitize(orderId),
         amount: totalAmount,
-        cardId: selectedCardId,
+        cardId: DOMPurify.sanitize(selectedCardId),
       };
 
       const paymentResponse = await paymentService.processPayment(paymentData);
-      setSuccess(paymentResponse.message);
-      toast.success('Payment processed successfully!');
+      const successMessage = DOMPurify.sanitize(paymentResponse.message);
+      setSuccess(successMessage);
+      toast.success(DOMPurify.sanitize('Payment processed successfully!'));
 
       navigate('/orders');
     } catch (err) {
-      setError(err.response?.data?.message || err.message);
-      toast.error(err.response?.data?.message || 'Failed to process payment');
+      const errorMessage = DOMPurify.sanitize(err.response?.data?.message || err.message);
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -143,7 +156,7 @@ const CreateOrder = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <p className="text-lg text-secondary">
-          Please log in to place an order.
+          {DOMPurify.sanitize('Please log in to place an order.')}
         </p>
       </div>
     );
@@ -153,7 +166,7 @@ const CreateOrder = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <p className="text-lg text-secondary">
-          Your cart is empty. Please add items to your cart before placing an order.
+          {DOMPurify.sanitize('Your cart is empty. Please add items to your cart before placing an order.')}
         </p>
       </div>
     );
@@ -168,8 +181,10 @@ const CreateOrder = () => {
           <div className="space-y-4">
             {cart.items.map((item) => (
               <div key={item.itemId} className="border-b border-gray-200 pb-5">
-                <h3 className="text-lg font-semibold text-secondary">{item.itemName}</h3>
-                <p className="text-sm text-gray-600">{item.description}</p>
+                <h3 className="text-lg font-semibold text-secondary">
+                  {DOMPurify.sanitize(item.itemName)}
+                </h3>
+                <p className="text-sm text-gray-600">{DOMPurify.sanitize(item.description)}</p>
                 <div className="flex justify-between mt-2">
                   <span className="text-sm text-secondary">Price:</span>
                   <span className="text-sm text-secondary">${item.price}</span>
@@ -249,7 +264,7 @@ const CreateOrder = () => {
               ) : userEmail ? (
                 <p className="text-sm text-secondary">{userEmail}</p>
               ) : (
-                <p className="text-sm text-red-500">Failed to load email</p>
+                <p className="text-sm text-red-500">{DOMPurify.sanitize('Failed to load email')}</p>
               )}
             </div>
 

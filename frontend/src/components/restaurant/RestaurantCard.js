@@ -1,13 +1,24 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 
 const RestaurantCard = ({ restaurant }) => {
+  // Sanitize fields
+  const sanitizedName = DOMPurify.sanitize(restaurant.name || '');
+  const sanitizedCuisineType = DOMPurify.sanitize(restaurant.cuisineType || '');
+  const sanitizedAddress = DOMPurify.sanitize(restaurant.address || '');
+  const sanitizedId = DOMPurify.sanitize(restaurant._id || '');
+  // Validate and sanitize image URL
+  const sanitizedImage = restaurant.image && /^https?:\/\//.test(restaurant.image)
+    ? DOMPurify.sanitize(restaurant.image)
+    : null;
+
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-all duration-300">
-      {restaurant.image ? (
+      {sanitizedImage ? (
         <img
-          src={restaurant.image}
-          alt={restaurant.name}
+          src={sanitizedImage}
+          alt={sanitizedName}
           className="w-full h-48 object-cover rounded-t-xl"
         />
       ) : (
@@ -16,14 +27,14 @@ const RestaurantCard = ({ restaurant }) => {
         </div>
       )}
       <div className="p-4">
-        <h3 className="text-lg font-semibold text-secondary">{restaurant.name}</h3>
+        <h3 className="text-lg font-semibold text-secondary">{sanitizedName}</h3>
         <p className="text-sm text-gray-600 mt-1">
-          <strong>Cuisine:</strong> {restaurant.cuisineType}
+          <strong>Cuisine:</strong> {sanitizedCuisineType}
         </p>
         <p className="text-sm text-gray-600 mt-1">
-          <strong>Address:</strong> {restaurant.address}
+          <strong>Address:</strong> {sanitizedAddress}
         </p>
-        <Link to={`/restaurants/${restaurant._id}/menu`}>
+        <Link to={`/restaurants/${sanitizedId}/menu`}>
           <button className="mt-3 px-4 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-dark transition-colors duration-200">
             View Menu
           </button>
