@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import useCart from '../../hooks/useCart';
 import { toast } from 'react-toastify';
+import DOMPurify from 'dompurify';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 const AddToCartForm = () => {
@@ -9,7 +10,6 @@ const AddToCartForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Initialize formData with default values
   const [formData, setFormData] = useState({
     restaurantId: '',
     itemId: '',
@@ -19,52 +19,84 @@ const AddToCartForm = () => {
     quantity: 1,
   });
 
-  // Populate formData with data from navigation state
+  // Validate and sanitize navigation state
   useEffect(() => {
     const { restaurantId, itemId, itemName, description, price } = location.state || {};
-    if (restaurantId && itemId && itemName && price) {
+    const isValidObjectId = (id) => /^[a-fA-F0-9]{24}$/.test(id); // MongoDB ObjectId format
+    const isValidPrice = (p) => !isNaN(p) && p > 0;
+
+    if (
+      restaurantId &&
+      itemId &&
+      itemName &&
+      price &&
+      isValidObjectId(restaurantId) &&
+      isValidObjectId(itemId) &&
+      isValidPrice(price)
+    ) {
       setFormData({
-        restaurantId: restaurantId || '',
-        itemId: itemId || '',
-        itemName: itemName || '',
-        description: description || '',
-        price: price ? price.toString() : '',
+        restaurantId: DOMPurify.sanitize(restaurantId),
+        itemId: DOMPurify.sanitize(itemId),
+        itemName: DOMPurify.sanitize(itemName),
+        description: DOMPurify.sanitize(description || ''),
+        price: price.toString(),
         quantity: 1,
       });
     } else {
-      toast.error('Missing item details. Please select an item to add to cart.');
-      navigate('/'); // Redirect to home or menu page if data is missing
+      toast.error(DOMPurify.sanitize('Missing or invalid item details. Please select an item to add to cart.'));
+      navigate('/add-to-cart');
     }
   }, [location.state, navigate]);
 
-  // Only allow quantity to be changed
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'quantity') {
-      setFormData({ ...formData, [name]: value });
+      const parsedValue = parseInt(value);
+      if (isNaN(parsedValue) || parsedValue < 1 || parsedValue > 100) {
+        toast.error('Quantity must be an integer between 1 and 100');
+        return;
+      }
+      setFormData({ ...formData, quantity: parsedValue });
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const { restaurantId, itemId, itemName, description, price, quantity } = formData;
+
+    // Validate inputs
+    if (!restaurantId || !itemId || !itemName || !price || !quantity) {
+      toast.error(DOMPurify.sanitize('All fields are required'));
+      return;
+    }
+    const parsedPrice = parseFloat(price);
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+      toast.error(DOMPurify.sanitize('Invalid price'));
+      return;
+    }
+    if (itemName.length > 100 || description.length > 500) {
+      toast.error(DOMPurify.sanitize('Item name or description too long'));
+      return;
+    }
+
     try {
       await addToCart({
-        restaurantId: formData.restaurantId,
-        itemId: formData.itemId,
-        itemName: formData.itemName,
-        description: formData.description,
-        price: parseFloat(formData.price),
-        quantity: parseInt(formData.quantity),
+        restaurantId: DOMPurify.sanitize(restaurantId),
+        itemId: DOMPurify.sanitize(itemId),
+        itemName: DOMPurify.sanitize(itemName),
+        description: DOMPurify.sanitize(description),
+        price: parsedPrice,
+        quantity: parseInt(quantity),
       });
-      toast.success('Item added to cart!');
-      navigate('/cart'); // Redirect to cart view page
+      toast.success(DOMPurify.sanitize('Item added to cart!'));
+      navigate('/cart');
     } catch (error) {
-      console.error('Add to cart error:', error.response?.data || error.message);
-      toast.error(error.response?.data?.error || 'Failed to add to cart');
+      const errorMessage = DOMPurify.sanitize(error.response?.data?.error || 'Failed to add to cart');
+      toast.error(errorMessage);
     }
   };
 
-  // Format price in LKR (similar to MenuItem.js)
+  // Format price in LKR
   const formatPrice = (price) => {
     return `LKR ${parseFloat(price).toLocaleString('en-LK', {
       minimumFractionDigits: 2,
@@ -77,16 +109,15 @@ const AddToCartForm = () => {
   return (
     <div className="flex items-center justify-center bg-white font-sans w-full max-w-full mx-0 px-0 py-6 sm:py-8">
       <div className="w-full max-w-xs sm:max-w-sm md:max-w-lg mx-auto p-4 sm:p-6 bg-white shadow-lg rounded-lg border border-gray-200">
-      
         <form onSubmit={handleSubmit}>
           {/* Item Name as Header */}
           <h2 className="text-2xl sm:text-2xl font-bold text-secondary mb-2 sm:mb-4">
-            {formData.itemName}
+            {DOMPurify.sanitize(formData.itemName)}
           </h2>
 
           {/* Description */}
           <p className="text-sm sm:text-base text-gray-600 mb-5 sm:mb-3">
-            {formData.description || 'No description available'}
+            {DOMPurify.sanitize(formData.description || 'No description available')}
           </p>
 
           {/* Price */}
@@ -105,6 +136,7 @@ const AddToCartForm = () => {
               value={formData.quantity}
               onChange={handleChange}
               min="1"
+              max="100"
               required
               placeholder="Quantity"
               className="w-full p-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
