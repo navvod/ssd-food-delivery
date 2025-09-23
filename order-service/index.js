@@ -44,7 +44,14 @@ app.use(
 
 //frontend
 const cors = require('cors');
-app.use(cors({ origin: 'http://localhost:3000' }));
+// Configure CORS with specific options for security
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:3000", // Restrict to specific client origin
+    methods: ["GET", "POST", "PUT", "DELETE"], // Allowed methods
+    credentials: true, // Allow cookies if needed
+  })
+);
 
 
 
