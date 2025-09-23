@@ -1,31 +1,40 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import DOMPurify from 'dompurify';
 
 const MenuItem = ({ item }) => {
   const navigate = useNavigate();
 
+  // Sanitize fields
+  const sanitizedName = DOMPurify.sanitize(item.name || '');
+  const sanitizedDescription = DOMPurify.sanitize(item.description || '');
+  // Validate and sanitize image URL
+  const sanitizedImage = item.image && /^https?:\/\//.test(item.image)
+    ? DOMPurify.sanitize(item.image)
+    : null;
+
   const handleAddToCart = (e) => {
-    e.stopPropagation(); // Prevent triggering the card's onClick
-    toast.success(`${item.name} added to cart!`, {
+    e.stopPropagation();
+    toast.success(`${sanitizedName} added to cart!`, {
       position: 'top-right',
       autoClose: 2000,
     });
-    // Navigate to the AddToCartPage with item details
+    // Navigate to the AddToCartPage with sanitized item details
     navigate('/add-to-cart', {
       state: {
-        restaurantId: item.restaurantId,
-        itemId: item._id,
-        itemName: item.name,
-        description: item.description,
-        price: item.price,
+        restaurantId: DOMPurify.sanitize(item.restaurantId || ''),
+        itemId: DOMPurify.sanitize(item._id || ''),
+        itemName: sanitizedName,
+        description: sanitizedDescription,
+        price: item.price, // Numbers are safe
       },
     });
   };
 
   const handleClick = () => {
     // Navigate to a menu item details page (optional)
-    navigate(`/restaurants/${item.restaurantId}/menu/${item._id}`);
+    navigate(`/restaurants/${DOMPurify.sanitize(item.restaurantId)}/menu/${DOMPurify.sanitize(item._id)}`);
   };
 
   // Format price in LKR
@@ -42,10 +51,10 @@ const MenuItem = ({ item }) => {
       className="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-all duration-300"
     >
       <div>
-        {item.image ? (
+        {sanitizedImage ? (
           <img
-            src={item.image}
-            alt={item.name}
+            src={sanitizedImage}
+            alt={sanitizedName}
             className="w-full h-48 object-cover rounded-t-xl"
           />
         ) : (
@@ -55,8 +64,8 @@ const MenuItem = ({ item }) => {
         )}
       </div>
       <div className="p-4">
-        <h3 className="text-lg font-semibold text-secondary">{item.name}</h3>
-        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{item.description}</p>
+        <h3 className="text-lg font-semibold text-secondary">{sanitizedName}</h3>
+        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{sanitizedDescription}</p>
         <div className="flex justify-between items-center mt-3">
           <p className="text-gray-700 font-medium">{formatPrice(item.price)}</p>
           <button
