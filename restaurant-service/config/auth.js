@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 require("dotenv").config();
 
-const JWT_SECRET = process.env.JWT_SECRET || "jwt_secret";
+const JWT_SECRET = process.env.JWT_SECRET ;
 
 // Hash password
 const hashPassword = async (password) => {
